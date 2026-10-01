@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      2.5.0
+// @version      2.6.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -150,6 +150,34 @@
     }
   }
 
+  // ── Seen tracking storage ────────────────────────────────────────────────────
+
+  const LS_SEEN_PREFIX = 'fmp_seen_';
+
+  function loadSeen(id) {
+    return GM_getValue(LS_SEEN_PREFIX + id, null) === '1';
+  }
+
+  function saveSeen(id) {
+    GM_setValue(LS_SEEN_PREFIX + id, '1');
+  }
+
+  function countSeen() {
+    return GM_listValues().filter((key) => key.startsWith(LS_SEEN_PREFIX)).length;
+  }
+
+  function resetSeen() {
+    const n = countSeen();
+    if (!n) return;
+    if (!confirm(`Reset the "seen" mark on ${n} listing${n === 1 ? '' : 's'}?`)) return;
+    GM_listValues().forEach((key) => {
+      if (key.startsWith(LS_SEEN_PREFIX)) GM_deleteValue(key);
+    });
+    applyFilter();
+    applyOverlays();
+    updateCounter();
+  }
+
   // ── Status definitions — Lucide-style inline SVG ──────────────────────────────
 
   function makeSvg(inner) {
@@ -255,6 +283,7 @@
   let currentPredicate = () => true;
   const selectedStatuses = new Set(); // status ids chosen in the filter panel
   let locationFilter = []; // allowed location substrings, lowercased; empty = off
+  let unseenOnly = false; // when true, listings already marked seen are hidden
 
   function cardMatchesFilters(card) {
     if (!currentPredicate(getCardTitle(card))) return false;
@@ -264,14 +293,17 @@
       if (!loc || !locationFilter.some((term) => loc.includes(term))) return false;
     }
 
-    if (selectedStatuses.size === 0) return true;
     const id = getItemId(card);
+    if (unseenOnly && id && loadSeen(id)) return false;
+
+    if (selectedStatuses.size === 0) return true;
     const cardStatus = id ? loadStatus(id) : null;
     return selectedStatuses.has(cardStatus);
   }
 
   function refreshAllOverlays() {
     getCards().forEach((card) => {
+      refreshSeen(card);
       const id = getItemId(card);
       if (!id) return;
       const overlay = card.querySelector(`[${OVERLAY_MARKER}]`);
@@ -287,9 +319,9 @@
   }
 
   function clearAllData() {
-    if (!confirm('Delete all saved statuses and notes? This action cannot be undone.')) return;
+    if (!confirm('Delete all saved statuses, notes and seen marks? This action cannot be undone.')) return;
     GM_listValues().forEach((key) => {
-      if (key.startsWith(LS_PREFIX) || key.startsWith(LS_NOTE_PREFIX)) {
+      if (key.startsWith(LS_PREFIX) || key.startsWith(LS_NOTE_PREFIX) || key.startsWith(LS_SEEN_PREFIX)) {
         GM_deleteValue(key);
       }
     });
@@ -303,7 +335,8 @@
     style.id = 'fmp-style';
     style.textContent =
       'a[href*="/marketplace/item/"][data-fmp-bad]{opacity:0.25;transition:opacity 0.2s}\n' +
-      'a[href*="/marketplace/item/"][data-fmp-bad]:hover{opacity:1}';
+      'a[href*="/marketplace/item/"][data-fmp-bad]:hover{opacity:1}\n' +
+      'a[href*="/marketplace/item/"][data-fmp-seen="0"]{outline:2px solid rgba(34,197,94,0.55);outline-offset:-2px}';
     document.head.appendChild(style);
   }
 
@@ -313,8 +346,8 @@
       const isBad = id && loadStatus(id) === 'bad';
       const matches = cardMatchesFilters(card);
 
-      if (isBad && selectedStatuses.size === 0) {
-        // no filter active: CSS handles 0.4 dim + hover restore
+      if (isBad && matches && selectedStatuses.size === 0) {
+        // no filter excluding it: CSS handles dim + hover restore
         card.dataset.fmpBad = '1';
         card.style.opacity = '';
         card.style.transition = '';
@@ -337,6 +370,35 @@
   // Marker on the overlay element itself — survives React re-renders better
   // than an attribute on the <a> tag.
   const OVERLAY_MARKER = 'data-fmp-el';
+
+  // ── Seen tracking ────────────────────────────────────────────────────────────
+
+  // Unseen cards carry data-fmp-seen="0" (green outline via CSS); seen cards "1".
+  function refreshSeen(card) {
+    const id = getItemId(card);
+    if (!id) {
+      delete card.dataset.fmpSeen;
+      return;
+    }
+    card.dataset.fmpSeen = loadSeen(id) ? '1' : '0';
+  }
+
+  // Auto-mark a listing as seen when its card is opened. Clicks inside the
+  // status overlay don't count — triaging a listing isn't viewing it.
+  function hookSeen(card) {
+    if (card.dataset.fmpSeenHook === '1') return;
+    const id = getItemId(card);
+    if (!id) return;
+    card.dataset.fmpSeenHook = '1';
+    card.addEventListener('mousedown', (event) => {
+      if (event.target.closest(`[${OVERLAY_MARKER}]`)) return;
+      if (loadSeen(id)) return;
+      saveSeen(id);
+      refreshSeen(card);
+      applyFilter();
+      updateCounter();
+    });
+  }
 
   function refreshButtons(overlay, id) {
     const current = loadStatus(id);
@@ -518,7 +580,11 @@
   }
 
   function applyOverlays() {
-    getCards().forEach(addStatusOverlay);
+    getCards().forEach((card) => {
+      addStatusOverlay(card);
+      refreshSeen(card);
+      hookSeen(card);
+    });
   }
 
   // ── Filter UI panel ──────────────────────────────────────────────────────────
@@ -660,7 +726,7 @@
           updateClearBtn();
           currentPredicate = parseQuery(h);
           applyFilter();
-          updateCounter(counter);
+          updateCounter();
           pushHistory(h);
           dropdown.style.display = 'none';
         });
@@ -694,7 +760,7 @@
       updateClearBtn();
       currentPredicate = () => true;
       applyFilter();
-      updateCounter(counter);
+      updateCounter();
       input.focus();
       renderDropdown();
     });
@@ -752,7 +818,7 @@
       saveLocations(locInput.value);
       locationFilter = parseLocations(locInput.value);
       applyFilter();
-      updateCounter(counter);
+      updateCounter();
     });
 
     locWrapper.appendChild(locInput);
@@ -764,6 +830,7 @@
       fontSize: '11px',
       textAlign: 'right',
     });
+    activeCounter = counter;
 
     // Status filter toggles
     const legend = document.createElement('div');
@@ -813,14 +880,55 @@
         else selectedStatuses.add(s.id);
         syncStyle();
         applyFilter();
-        updateCounter(counter);
+        updateCounter();
       });
 
       statusGroup.appendChild(btn);
     });
 
+    // "Unseen only" toggle — green accent to match the unseen outline
+    const seenBtn = document.createElement('button');
+    seenBtn.title = 'Show only unseen listings';
+    seenBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    Object.assign(seenBtn.style, toggleBtnStyle);
+
+    function syncSeenBtn() {
+      seenBtn.style.background = unseenOnly ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)';
+      seenBtn.style.borderColor = unseenOnly ? '#22c55e' : 'transparent';
+      seenBtn.style.color = unseenOnly ? '#22c55e' : 'rgba(255,255,255,0.45)';
+    }
+    syncSeenBtn();
+    seenBtn.addEventListener('mouseenter', () => {
+      if (!unseenOnly) seenBtn.style.background = 'rgba(255,255,255,0.16)';
+    });
+    seenBtn.addEventListener('mouseleave', syncSeenBtn);
+    seenBtn.addEventListener('click', () => {
+      unseenOnly = !unseenOnly;
+      syncSeenBtn();
+      applyFilter();
+      updateCounter();
+    });
+
+    const resetSeenBtn = document.createElement('button');
+    resetSeenBtn.title = 'Reset "seen" marks';
+    resetSeenBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+    Object.assign(resetSeenBtn.style, {
+      ...toggleBtnStyle,
+      background: 'rgba(255,255,255,0.08)',
+      color: 'rgba(255,255,255,0.6)',
+    });
+    resetSeenBtn.addEventListener('mouseenter', () => { resetSeenBtn.style.background = 'rgba(255,255,255,0.16)'; });
+    resetSeenBtn.addEventListener('mouseleave', () => { resetSeenBtn.style.background = 'rgba(255,255,255,0.08)'; });
+    resetSeenBtn.addEventListener('click', resetSeen);
+
     const clearBtn = document.createElement('button');
-    clearBtn.title = 'Clear all statuses and notes';
+    clearBtn.title = 'Clear all statuses, notes and seen marks';
     clearBtn.innerHTML =
       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
       'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
@@ -843,8 +951,18 @@
     });
     clearBtn.addEventListener('click', clearAllData);
 
-    legend.appendChild(statusGroup);
-    legend.appendChild(clearBtn);
+    const legendLeft = document.createElement('div');
+    Object.assign(legendLeft.style, { display: 'flex', gap: '6px', alignItems: 'center' });
+    legendLeft.appendChild(statusGroup);
+    legendLeft.appendChild(seenBtn);
+
+    const legendRight = document.createElement('div');
+    Object.assign(legendRight.style, { display: 'flex', gap: '4px', alignItems: 'center' });
+    legendRight.appendChild(resetSeenBtn);
+    legendRight.appendChild(clearBtn);
+
+    legend.appendChild(legendLeft);
+    legend.appendChild(legendRight);
 
     wrapper.appendChild(labelRow);
     wrapper.appendChild(inputWrapper);
@@ -873,25 +991,27 @@
       debounceTimer = setTimeout(() => {
         currentPredicate = parseQuery(input.value);
         applyFilter();
-        updateCounter(counter);
+        updateCounter();
       }, 200);
     });
 
     document.body.appendChild(wrapper);
-    return { input, counter };
   }
 
-  function updateCounter(counter) {
+  let activeCounter = null; // panel counter element, set by createUI
+
+  function updateCounter() {
+    if (!activeCounter) return;
     const cards = getCards();
     let visible = 0;
     cards.forEach((card) => { if (cardMatchesFilters(card)) visible++; });
     const total = cards.length;
-    counter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
+    activeCounter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
   }
 
   // ── MutationObserver for dynamic cards ──────────────────────────────────────
 
-  function watchDynamicCards(counter) {
+  function watchDynamicCards() {
     let rafPending = false;
 
     const observer = new MutationObserver(() => {
@@ -901,7 +1021,7 @@
         rafPending = false;
         applyFilter();
         applyOverlays();
-        updateCounter(counter);
+        updateCounter();
       });
     });
 
@@ -934,11 +1054,11 @@
     }
 
     injectStyle();
-    const { counter } = createUI();
+    createUI();
     applyFilter();
     applyOverlays();
-    updateCounter(counter);
-    watchDynamicCards(counter);
+    updateCounter();
+    watchDynamicCards();
   }
 
   if (document.readyState === 'loading') {

@@ -70,13 +70,13 @@ Each listing card gets a small panel in the top-left corner of the photo with th
 - Click the same button again to clear the status.
 - Only one status can be set per listing.
 
-**Listings marked "Bad"** are dimmed based on the active status filter:
+**Listings marked "Bad"** are dimmed based on the active filter:
 
-| Active filter | Behavior |
+| Situation | Behavior |
 |---|---|
-| No filter selected | opacity: 0.4; hover restores full visibility |
-| "Bad" filter selected | full opacity (the listing matches the filter) |
-| Any other filter selected | opacity: 0.1; no hover effect |
+| No filter excludes the listing | opacity: 0.25; hover restores full visibility |
+| The "Bad" filter is selected | full opacity (the listing matches the filter) |
+| Any other filter excludes it | opacity: 0.1; no hover effect |
 
 **Storage:** statuses are saved in Tampermonkey's GM storage and persist across browser data clears.
 
@@ -84,7 +84,20 @@ Each listing card gets a small panel in the top-left corner of the photo with th
 
 ## Status filter
 
-The bottom row of the panel has three status toggle buttons. Clicking a toggle shows only listings with that status; others are dimmed. Multiple statuses can be selected at once. Click again to deselect.
+The bottom row of the panel has three status toggle buttons, the seen-tracking controls (below) and the trash button. Clicking a toggle shows only listings with that status; others are dimmed. Multiple statuses can be selected at once. Click again to deselect.
+
+---
+
+## Seen tracking
+
+Listings you have opened are remembered, so you can tell new ones from ones you've already looked at.
+
+- **Unseen** listings get a green outline.
+- Opening a listing — any click on the card outside the status panel — marks it seen and removes the outline. Clicking a status button does **not** count as viewing.
+- The **eye** toggle shows only unseen listings; everything already seen is dimmed. Click again to show all.
+- The **↺** button clears every seen mark (after a confirmation).
+
+Seen marks are stored in GM storage, one entry per listing.
 
 ---
 
@@ -101,7 +114,7 @@ Each listing card has a note field next to the status buttons. Click it to enter
 
 ## Clear all data
 
-The trash icon button on the right side of the status filter row prompts for confirmation, then deletes **all** saved statuses and notes. Cards update immediately without a page reload.
+The trash icon button on the right side of the status filter row prompts for confirmation, then deletes **all** saved statuses, notes and seen marks. Cards update immediately without a page reload.
 
 ---
 
