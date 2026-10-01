@@ -41,6 +41,18 @@ plug-in+hybrid           → any plug-in hybrid
 
 Focusing the input shows a dropdown with up to 10 recent queries. If the field is not empty, the list filters to entries that match the current text. Clicking an item applies that query. The dropdown opens upward when there isn't enough space below in the viewport.
 
+### Location filter
+
+Below the search input is a locations field. Enter a comma-separated list of allowed locations — city and/or state, case-insensitive, matched as substrings against the listing's location:
+
+```
+portland, seattle
+```
+
+While the field is non-empty, listings whose location matches **none** of the terms are dimmed. Clear the field to disable the filter. The value is saved and re-applied automatically on page load.
+
+Location is read from each listing's `aria-label`, from the segments between the price and the listing ID (e.g. `Portland, OR`). A listing whose location can't be determined is treated as non-matching while the filter is active.
+
 ---
 
 ## Listing statuses
