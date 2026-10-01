@@ -25,7 +25,7 @@
 
   // Price: "$4,995" or "4 995 $" or bare "4,995"
   const PRICE_SEGMENT_RE = /^\$?[\d,.\s]+\$?$/;
-  // Listing ID: any segment containing 8+ consecutive digits (e.g. "объявление 2048088512449409")
+  // Listing ID: any segment containing 8+ consecutive digits (e.g. "listing 2048088512449409")
   const LISTING_ID_RE = /\d{8,}/;
 
   function isNoiseSegment(part) {
@@ -36,7 +36,7 @@
   function getCardTitle(card) {
     const label = card.getAttribute('aria-label');
     if (label) {
-      // aria-label: "Title, 4 995 $, Portland, OR, объявление 2048088512449409"
+      // aria-label: "Title, $4,995, Portland, OR, listing 2048088512449409"
       return label
         .split(/,\s*/)
         .filter(part => !isNoiseSegment(part))
@@ -127,7 +127,7 @@
   const STATUSES = [
     {
       id: 'good',
-      title: 'Подходит — можно рассмотреть',
+      title: 'Matches — worth considering',
       color: '#22c55e',
       icon: makeSvg(
         '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'
@@ -135,7 +135,7 @@
     },
     {
       id: 'bad',
-      title: 'Не подходит',
+      title: "Doesn't match",
       color: '#ef4444',
       icon: makeSvg(
         '<circle cx="12" cy="12" r="10"/>' +
@@ -144,7 +144,7 @@
     },
     {
       id: 'later',
-      title: 'Рассмотреть позже',
+      title: 'Consider later',
       color: '#f59e0b',
       icon: makeSvg(
         '<path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88' +
@@ -235,14 +235,14 @@
       const noteDisplay = overlay.querySelector('[data-fmp-note]');
       if (noteDisplay) {
         const note = loadNote(id);
-        noteDisplay.textContent = note || '+ заметка';
+        noteDisplay.textContent = note || '+ note';
         noteDisplay.style.color = note ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.22)';
       }
     });
   }
 
   function clearAllData() {
-    if (!confirm('Удалить все сохранённые статусы и заметки? Это действие нельзя отменить.')) return;
+    if (!confirm('Delete all saved statuses and notes? This action cannot be undone.')) return;
     GM_listValues().forEach((key) => {
       if (key.startsWith(LS_PREFIX) || key.startsWith(LS_NOTE_PREFIX)) {
         GM_deleteValue(key);
@@ -413,12 +413,12 @@
       userSelect: 'none',
       color: initialNote ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.22)',
     });
-    noteDisplay.textContent = initialNote || '+ заметка';
+    noteDisplay.textContent = initialNote || '+ note';
 
     const noteInput = document.createElement('input');
     noteInput.type = 'text';
     noteInput.maxLength = 50;
-    noteInput.placeholder = 'Заметка...';
+    noteInput.placeholder = 'Note...';
     Object.assign(noteInput.style, {
       display: 'none',
       width: '100%',
@@ -450,7 +450,7 @@
       if (save) {
         saveNote(id, noteInput.value);
         const saved = loadNote(id);
-        noteDisplay.textContent = saved || '+ заметка';
+        noteDisplay.textContent = saved || '+ note';
         noteDisplay.style.color = saved ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.22)';
       }
     }
@@ -514,7 +514,7 @@
       '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" ' +
       'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
       '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>' +
-      '</svg><span>Фильтр объявлений</span>';
+      '</svg><span>Listing filter</span>';
     Object.assign(label.style, {
       display: 'inline-flex',
       alignItems: 'center',
@@ -737,7 +737,7 @@
     });
 
     const clearBtn = document.createElement('button');
-    clearBtn.title = 'Очистить все статусы и заметки';
+    clearBtn.title = 'Clear all statuses and notes';
     clearBtn.innerHTML =
       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
       'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
@@ -801,7 +801,7 @@
     let visible = 0;
     cards.forEach((card) => { if (cardMatchesFilters(card)) visible++; });
     const total = cards.length;
-    counter.textContent = total > 0 ? `Совпадений: ${visible} / ${total}` : '';
+    counter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
   }
 
   // ── MutationObserver for dynamic cards ──────────────────────────────────────
