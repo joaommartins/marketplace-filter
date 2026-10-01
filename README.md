@@ -57,7 +57,7 @@ Location is read from each listing's `aria-label`, from the segments between the
 
 ## Listing statuses
 
-Each listing card gets a small panel in the top-left corner of the photo with three buttons:
+Each listing card gets a small panel in the top-left corner of the photo with three buttons, plus a bookmark chip when the listing is in your Facebook Saved list (see [Saved listings](#saved-listings)):
 
 | Icon | Status | Description |
 |---|---|---|
@@ -101,6 +101,18 @@ Seen marks are stored in GM storage, one entry per listing.
 
 ---
 
+## Saved listings
+
+A bookmark badge appears on any listing that is in your Facebook **Saved** list, so you can tell at a glance which ones you've already bookmarked.
+
+Grid cards themselves carry no saved flag, so the script mirrors the list from Facebook's Saved page: **open `facebook.com/marketplace/you/saved/` once** and every listing rendered on that page is recorded. Scroll it to load more before leaving if you want deeper coverage — only what has actually rendered is captured. Badges then appear wherever those listings show up.
+
+- The mirror is stored per listing in GM storage and re-read on every page.
+- The mirror is **add-only**: un-saving a listing on Facebook does not remove its badge. The trash button clears the mirror.
+- If Facebook renames the Saved route, `SAVED_PATH_RE` in the saved-tracking section is the single line to update.
+
+---
+
 ## Notes
 
 Each listing card has a note field next to the status buttons. Click it to enter a short note (up to 50 characters).
@@ -114,7 +126,7 @@ Each listing card has a note field next to the status buttons. Click it to enter
 
 ## Clear all data
 
-The trash icon button on the right side of the status filter row prompts for confirmation, then deletes **all** saved statuses, notes and seen marks. Cards update immediately without a page reload.
+The trash icon button on the right side of the status filter row prompts for confirmation, then deletes **all** saved statuses, notes, seen marks and the mirrored saved list. Cards update immediately without a page reload.
 
 ---
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      2.6.0
+// @version      2.7.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -178,6 +178,36 @@
     updateCounter();
   }
 
+  // ── Saved (Facebook) tracking storage ────────────────────────────────────────
+  //
+  // Marketplace grid cards carry no saved flag of their own, so the set of saved
+  // listings is mirrored from Facebook's Saved page whenever that page is open.
+  // SAVED_PATH_RE is the single place to adjust if FB renames the route.
+
+  const LS_SAVED_PREFIX = 'fmp_saved_';
+  const SAVED_PATH_RE = /^\/marketplace\/(?:you\/)?saved(?:\/|$)/i;
+
+  function loadSaved(id) {
+    return GM_getValue(LS_SAVED_PREFIX + id, null) === '1';
+  }
+
+  function isSavedPage() {
+    return SAVED_PATH_RE.test(location.pathname);
+  }
+
+  // Every card on the Saved page is, by definition, a saved listing.
+  function harvestSavedListings() {
+    if (!isSavedPage()) return;
+    let added = 0;
+    getCards().forEach((card) => {
+      const id = getItemId(card);
+      if (!id || loadSaved(id)) return;
+      GM_setValue(LS_SAVED_PREFIX + id, '1');
+      added++;
+    });
+    if (added) applyOverlays();
+  }
+
   // ── Status definitions — Lucide-style inline SVG ──────────────────────────────
 
   function makeSvg(inner) {
@@ -309,6 +339,7 @@
       const overlay = card.querySelector(`[${OVERLAY_MARKER}]`);
       if (!overlay) return;
       refreshButtons(overlay, id);
+      refreshSavedBlock(overlay, id);
       const noteDisplay = overlay.querySelector('[data-fmp-note]');
       if (noteDisplay) {
         const note = loadNote(id);
@@ -319,9 +350,14 @@
   }
 
   function clearAllData() {
-    if (!confirm('Delete all saved statuses, notes and seen marks? This action cannot be undone.')) return;
+    if (!confirm('Delete all saved statuses, notes, seen and saved mirrors? This action cannot be undone.')) return;
     GM_listValues().forEach((key) => {
-      if (key.startsWith(LS_PREFIX) || key.startsWith(LS_NOTE_PREFIX) || key.startsWith(LS_SEEN_PREFIX)) {
+      if (
+        key.startsWith(LS_PREFIX) ||
+        key.startsWith(LS_NOTE_PREFIX) ||
+        key.startsWith(LS_SEEN_PREFIX) ||
+        key.startsWith(LS_SAVED_PREFIX)
+      ) {
         GM_deleteValue(key);
       }
     });
@@ -412,12 +448,21 @@
     });
   }
 
+  function refreshSavedBlock(overlay, id) {
+    const block = overlay.querySelector('[data-fmp-saved]');
+    if (block) block.style.display = loadSaved(id) ? 'flex' : 'none';
+  }
+
   function addStatusOverlay(card) {
     const id = getItemId(card);
     if (!id) return;
 
     // If overlay was removed (e.g. by FB re-render) re-inject it
-    if (card.querySelector(`[${OVERLAY_MARKER}]`)) return;
+    const existing = card.querySelector(`[${OVERLAY_MARKER}]`);
+    if (existing) {
+      refreshSavedBlock(existing, id);
+      return;
+    }
 
     if (getComputedStyle(card).position === 'static') {
       card.style.position = 'relative';
@@ -575,7 +620,29 @@
     noteBlock.appendChild(noteInput);
     overlay.appendChild(noteBlock);
 
+    // ── Saved block — shown only for listings mirrored from FB's Saved page ─────
+    const savedBlock = document.createElement('div');
+    savedBlock.setAttribute('data-fmp-saved', '1');
+    savedBlock.title = 'Saved on Facebook';
+    savedBlock.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+    Object.assign(savedBlock.style, {
+      display: 'none',
+      padding: '3px',
+      borderRadius: '8px',
+      background: 'rgba(0,0,0,0.45)',
+      backdropFilter: 'blur(6px)',
+      WebkitBackdropFilter: 'blur(6px)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#4da6ff',
+    });
+    overlay.appendChild(savedBlock);
+
     refreshButtons(overlay, id);
+    refreshSavedBlock(overlay, id);
     card.appendChild(overlay);
   }
 
@@ -1019,6 +1086,7 @@
       rafPending = true;
       requestAnimationFrame(() => {
         rafPending = false;
+        harvestSavedListings();
         applyFilter();
         applyOverlays();
         updateCounter();
@@ -1055,6 +1123,7 @@
 
     injectStyle();
     createUI();
+    harvestSavedListings();
     applyFilter();
     applyOverlays();
     updateCounter();
