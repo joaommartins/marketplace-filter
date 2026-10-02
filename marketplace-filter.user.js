@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.4.1
+// @version      4.5.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -294,8 +294,17 @@
   let currentPredicate = () => true;
   const selectedStatuses = new Set(); // status ids chosen in the filter panel
   let unseenOnly = false; // when true, listings already marked seen are hidden
+  let hideBad = false; // "view without rejected": removes bad listings from the grid
+
+  // A listing the hide-view removes entirely, as opposed to merely dimming.
+  function isHiddenByView(card) {
+    if (!hideBad) return false;
+    const id = getItemId(card);
+    return !!id && loadStatus(id) === 'bad';
+  }
 
   function cardMatchesFilters(card) {
+    if (isHiddenByView(card)) return false;
     if (!currentPredicate(getCardTitle(card))) return false;
 
     const id = getItemId(card);
@@ -352,6 +361,12 @@
 
   function applyFilter() {
     getCards().forEach((card) => {
+      if (isHiddenByView(card)) {
+        card.style.display = 'none';
+        return;
+      }
+      card.style.display = '';
+
       const id = getItemId(card);
       const isBad = id && loadStatus(id) === 'bad';
       const matches = cardMatchesFilters(card);
@@ -810,6 +825,12 @@
     const statusGroup = document.createElement('div');
     Object.assign(statusGroup.style, { display: 'flex', gap: '4px' });
 
+    // Every legend toggle registers a style sync here, so state changes that
+    // affect more than one toggle (see the "bad" / hide interaction) stay
+    // visually consistent.
+    const legendSyncers = [];
+    const syncLegend = () => legendSyncers.forEach((sync) => sync());
+
     const toggleBtnStyle = {
       width: '36px',
       height: '26px',
@@ -836,6 +857,7 @@
         btn.style.color = active ? s.color : 'rgba(255,255,255,0.45)';
       }
       syncStyle();
+      legendSyncers.push(syncStyle);
 
       btn.addEventListener('mouseenter', () => {
         if (!selectedStatuses.has(s.id)) btn.style.background = 'rgba(255,255,255,0.16)';
@@ -844,7 +866,9 @@
       btn.addEventListener('click', () => {
         if (selectedStatuses.has(s.id)) selectedStatuses.delete(s.id);
         else selectedStatuses.add(s.id);
-        syncStyle();
+        // "only Doesn't match" contradicts the view that hides them
+        if (s.id === 'bad' && selectedStatuses.has('bad')) hideBad = false;
+        syncLegend();
         applyFilter();
         updateCounter();
       });
@@ -867,13 +891,44 @@
       seenBtn.style.color = unseenOnly ? '#22c55e' : 'rgba(255,255,255,0.45)';
     }
     syncSeenBtn();
+    legendSyncers.push(syncSeenBtn);
     seenBtn.addEventListener('mouseenter', () => {
       if (!unseenOnly) seenBtn.style.background = 'rgba(255,255,255,0.16)';
     });
     seenBtn.addEventListener('mouseleave', syncSeenBtn);
     seenBtn.addEventListener('click', () => {
       unseenOnly = !unseenOnly;
-      syncSeenBtn();
+      syncLegend();
+      applyFilter();
+      updateCounter();
+    });
+
+    // "View without Doesn't match" — removes rejected listings from the grid
+    // rather than dimming them, red to match the bad status it acts on.
+    const hideBtn = document.createElement('button');
+    hideBtn.title = "View without the listings marked \"Doesn't match\"";
+    hideBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>' +
+      '<line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    Object.assign(hideBtn.style, toggleBtnStyle);
+
+    function syncHideBtn() {
+      hideBtn.style.background = hideBad ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)';
+      hideBtn.style.borderColor = hideBad ? '#ef4444' : 'transparent';
+      hideBtn.style.color = hideBad ? '#ef4444' : 'rgba(255,255,255,0.45)';
+    }
+    syncHideBtn();
+    legendSyncers.push(syncHideBtn);
+    hideBtn.addEventListener('mouseenter', () => {
+      if (!hideBad) hideBtn.style.background = 'rgba(255,255,255,0.16)';
+    });
+    hideBtn.addEventListener('mouseleave', syncHideBtn);
+    hideBtn.addEventListener('click', () => {
+      hideBad = !hideBad;
+      if (hideBad) selectedStatuses.delete('bad'); // the two would empty the grid
+      syncLegend();
       applyFilter();
       updateCounter();
     });
@@ -921,6 +976,7 @@
     Object.assign(legendLeft.style, { display: 'flex', gap: '6px', alignItems: 'center' });
     legendLeft.appendChild(statusGroup);
     legendLeft.appendChild(seenBtn);
+    legendLeft.appendChild(hideBtn);
 
     const legendRight = document.createElement('div');
     Object.assign(legendRight.style, { display: 'flex', gap: '4px', alignItems: 'center' });
@@ -1018,10 +1074,15 @@
   function updateCounter() {
     const cards = getCards();
     let visible = 0;
-    cards.forEach((card) => { if (cardMatchesFilters(card)) visible++; });
+    let total = 0;
+    cards.forEach((card) => {
+      if (isHiddenByView(card)) return; // gone from the grid: not counted at all
+      total++;
+      if (cardMatchesFilters(card)) visible++;
+    });
 
     if (activeCounter) {
-      activeCounter.textContent = cards.length > 0 ? `Matches: ${visible} / ${cards.length}` : '';
+      activeCounter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
     }
 
     if (bulkRow) {

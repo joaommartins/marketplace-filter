@@ -86,7 +86,15 @@ Each listing card gets a small panel in the top-left corner of the photo with th
 
 ## Status filter
 
-The bottom row of the panel has three status toggle buttons, the seen-tracking controls (below) and the trash button. Clicking a toggle shows only listings with that status; others are dimmed. Multiple statuses can be selected at once. Click again to deselect.
+The bottom row of the panel has three status toggle buttons, the view toggles described below, and the trash button. Clicking a status toggle shows only listings with that status; others are dimmed. Multiple statuses can be selected at once. Click again to deselect.
+
+---
+
+## Hiding rejected listings
+
+The crossed-eye toggle switches the grid to a view **without** the listings you marked **"Doesn't match"**. They are removed from the grid outright rather than dimmed, and the match counter stops counting them, so the page closes up around the listings you kept.
+
+Selecting the "Doesn't match" status filter turns this view off, and switching it on clears that selection — the two together would empty the grid.
 
 ---
 
