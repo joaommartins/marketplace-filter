@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.4.0
+// @version      4.4.1
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -1060,12 +1060,26 @@
 
   const MARKETPLACE_PATH_RE = /^\/marketplace(?:\/|$)/;
 
-  function init() {
-    // Features that no longer exist: purge their leftover persisted data.
+  // ── Migrations ───────────────────────────────────────────────────────────────
+  //
+  // One-off cleanups for data left behind by removed features. Recorded in
+  // storage so the key scan runs once per install rather than on every page
+  // load. Bump MIGRATIONS when adding another purge.
+
+  const MIGRATIONS_KEY = 'fmp_migrations';
+  const MIGRATIONS = 1;
+
+  function runMigrations() {
+    if (GM_getValue(MIGRATIONS_KEY, 0) >= MIGRATIONS) return;
     GM_deleteValue('fmp_locations'); // city filter, removed in 3.0.0
     GM_listValues().forEach((key) => {
       if (key.startsWith('fmp_note_')) GM_deleteValue(key); // note field, removed in 4.0.0
     });
+    GM_setValue(MIGRATIONS_KEY, MIGRATIONS);
+  }
+
+  function init() {
+    runMigrations();
 
     const existing = document.getElementById('fmp-filter-box');
 
