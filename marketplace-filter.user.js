@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.1.0
+// @version      4.2.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -106,10 +106,10 @@
     GM_setValue(LS_SEEN_PREFIX + id, '1');
   }
 
-  // Saving a listing is a stronger signal than opening it, so a saved listing
-  // counts as seen without needing an entry of its own.
+  // Anything you have done with a listing counts as seen: opening it, saving it
+  // on Facebook, or triaging it with a status. Only untouched listings are new.
   function isSeen(id) {
-    return loadSeen(id) || loadSaved(id);
+    return loadSeen(id) || loadSaved(id) || loadStatus(id) !== null;
   }
 
   function countSeen() {
@@ -340,8 +340,10 @@
       // unseen: vivid green ring
       'a[href*="/marketplace/item/"][data-fmp-seen="0"]{outline:3px solid #22c55e;outline-offset:-3px;border-radius:8px}\n' +
       // seen: muted by a veil that paints over the photo but under the overlay
-      // (the overlay carries z-index 20), so status buttons keep their colours
-      'a[href*="/marketplace/item/"][data-fmp-seen="1"]::after{content:"";position:absolute;inset:0;border-radius:8px;background:rgba(12,12,12,0.55);pointer-events:none}';
+      // (the overlay carries z-index 20), so status buttons keep their colours.
+      // Cards you rejected are excluded: they already dim to 0.25 with a hover
+      // restore, and stacking the veil on top would make them unreadable.
+      'a[href*="/marketplace/item/"][data-fmp-seen="1"]:not([data-fmp-bad])::after{content:"";position:absolute;inset:0;border-radius:8px;background:rgba(12,12,12,0.55);pointer-events:none}';
     document.head.appendChild(style);
   }
 
@@ -504,7 +506,9 @@
         e.stopPropagation();
         saveStatus(id, loadStatus(id) === s.id ? null : s.id);
         refreshButtons(overlay, id);
+        refreshSeen(card);
         applyFilter();
+        updateCounter();
       });
 
       statusBlock.appendChild(btn);

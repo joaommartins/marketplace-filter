@@ -90,10 +90,10 @@ Listings you have opened are remembered, so you can tell new ones from ones you'
 
 - **Unseen** listings get a bold green ring.
 - **Seen** listings are dimmed behind a dark veil, so new ones stand out at a glance. The veil sits under the status buttons, so their colours stay readable.
-- Opening a listing — any click on the card outside the status panel — marks it seen, swapping the ring for the veil. Clicking a status button does **not** count as viewing.
-- Listings in your Facebook Saved list always count as seen, whether or not you opened them (see [Saved listings](#saved-listings)).
+- A listing stops being new as soon as you do anything with it: open it (any click on the card outside the status panel), give it a status, or save it on Facebook. Only untouched listings keep the ring.
+- Listings marked **"Doesn't match"** keep their own dimming rather than the veil — rejecting a listing already fades it, and it restores on hover.
 - The **eye** toggle shows only unseen listings; everything already seen is dimmed. Click again to show all.
-- The **↺** button clears every seen mark you set by clicking. Saved listings stay seen, since that follows from being saved; use the trash button to clear everything.
+- The **↺** button clears the seen marks from openings. Listings you saved or triaged stay seen, since that follows from those states; the trash button clears everything.
 
 Seen marks are stored in GM storage, one entry per listing.
 
