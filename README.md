@@ -49,6 +49,12 @@ prius -camry             → Prius, excluding Camry
 
 Focusing the input shows a dropdown with up to 10 recent queries. If the field is not empty, the list filters to entries that match the current text. Clicking an item applies that query. The dropdown opens upward when there isn't enough space below in the viewport.
 
+### Bulk marking
+
+While a filter is narrowing the list, the panel shows a **Mark all N matching:** row with the three status buttons. Click one to apply that status to every matching listing at once — click the same one again to clear it from all of them.
+
+The row appears only when the query, the status filter or the unseen filter is active *and* at least one listing matches, so it can never mean "mark the whole page". Listings the filter has dimmed are never touched.
+
 ---
 
 ## Listing statuses

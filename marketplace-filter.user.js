@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.3.0
+// @version      4.4.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -373,6 +373,41 @@
         card.style.transition = matches ? '' : 'opacity 0.2s';
       }
     });
+  }
+
+  // ── Bulk marking ─────────────────────────────────────────────────────────────
+  //
+  // The panel only offers this while a filter is narrowing the list, so
+  // "mark all matching" can never mean "mark the whole page".
+
+  let bulkRow = null; // container, shown only when a filter is active
+  let bulkLabel = null; // "Mark all N matching:"
+  let activeInput = null; // search field, for the filter-active check
+  let panelCollapsed = false;
+
+  function hasActiveFilter() {
+    return (
+      (activeInput && activeInput.value.trim() !== '') ||
+      unseenOnly ||
+      selectedStatuses.size > 0
+    );
+  }
+
+  // Applies a status to every card that currently matches the filters. Clicking
+  // the same button again clears it — a bulk action needs a bulk undo.
+  function applyStatusToMatching(status) {
+    const ids = getCards()
+      .filter((card) => cardMatchesFilters(card))
+      .map(getItemId)
+      .filter(Boolean);
+    if (!ids.length) return;
+
+    const clear = ids.every((id) => loadStatus(id) === status);
+    ids.forEach((id) => saveStatus(id, clear ? null : status));
+
+    applyOverlays();
+    applyFilter();
+    updateCounter();
   }
 
   // ── Status overlay ───────────────────────────────────────────────────────────
@@ -895,15 +930,66 @@
     legend.appendChild(legendLeft);
     legend.appendChild(legendRight);
 
+    // ── Bulk marking row — revealed by updateCounter while a filter is active ───
+    activeInput = input;
+
+    const bulk = document.createElement('div');
+    bulk.id = 'fmp-bulk';
+    Object.assign(bulk.style, {
+      display: 'none',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '6px',
+      paddingTop: '2px',
+    });
+
+    const bulkText = document.createElement('span');
+    Object.assign(bulkText.style, { color: '#aaa', fontSize: '11px', whiteSpace: 'nowrap' });
+
+    const bulkGroup = document.createElement('div');
+    Object.assign(bulkGroup.style, { display: 'flex', gap: '4px', flexShrink: '0' });
+
+    STATUSES.forEach((s) => {
+      const btn = document.createElement('button');
+      btn.dataset.bulkSid = s.id;
+      btn.title = `Mark all matching as "${s.title}" — click again to clear`;
+      btn.innerHTML = s.icon;
+      Object.assign(btn.style, toggleBtnStyle, {
+        width: '32px',
+        height: '24px',
+        background: 'rgba(255,255,255,0.08)',
+        color: 'rgba(255,255,255,0.55)',
+      });
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = `${s.color}33`;
+        btn.style.borderColor = s.color;
+        btn.style.color = s.color;
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = 'rgba(255,255,255,0.08)';
+        btn.style.borderColor = 'transparent';
+        btn.style.color = 'rgba(255,255,255,0.55)';
+      });
+      btn.addEventListener('click', () => applyStatusToMatching(s.id));
+      bulkGroup.appendChild(btn);
+    });
+
+    bulk.appendChild(bulkText);
+    bulk.appendChild(bulkGroup);
+    bulkRow = bulk;
+    bulkLabel = bulkText;
+
     wrapper.appendChild(labelRow);
     wrapper.appendChild(inputWrapper);
     wrapper.appendChild(legend);
+    wrapper.appendChild(bulk);
     wrapper.appendChild(counter);
 
     // Collapse toggle
     let collapsed = false;
     toggleBtn.addEventListener('click', () => {
       collapsed = !collapsed;
+      panelCollapsed = collapsed;
       inputWrapper.style.display = collapsed ? 'none' : '';
       legend.style.display = collapsed ? 'none' : 'flex';
       counter.style.display = collapsed ? 'none' : '';
@@ -930,12 +1016,19 @@
   let activeCounter = null; // panel counter element, set by createUI
 
   function updateCounter() {
-    if (!activeCounter) return;
     const cards = getCards();
     let visible = 0;
     cards.forEach((card) => { if (cardMatchesFilters(card)) visible++; });
-    const total = cards.length;
-    activeCounter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
+
+    if (activeCounter) {
+      activeCounter.textContent = cards.length > 0 ? `Matches: ${visible} / ${cards.length}` : '';
+    }
+
+    if (bulkRow) {
+      const show = !panelCollapsed && visible > 0 && hasActiveFilter();
+      bulkRow.style.display = show ? 'flex' : 'none';
+      if (show) bulkLabel.textContent = `Mark all ${visible} matching:`;
+    }
   }
 
   // ── MutationObserver for dynamic cards ──────────────────────────────────────
