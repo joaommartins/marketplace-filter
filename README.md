@@ -24,8 +24,13 @@ A **×** button on the right side of the input clears the query and resets the f
 |---|---|
 | `word` | Title contains the word |
 | `word1+word2` | Both words must be in the title |
+| `word1 word2` | Same as `word1+word2` — whitespace is an implicit `+` |
 | `word1\|word2` | Either word must be in the title |
+| `-word` | Title must **not** contain the word |
 | `(word1\|word2)+word3` | Grouping with parentheses |
+| `-(word1\|word2)` | Neither word may appear |
+
+`-` negates the term or parenthesised group that follows it, so `a -b`, `-b` and `-(b|c)` all work. A `-` inside a word is literal, as in `plug-in`. A stray `-` with no term after it is ignored.
 
 Search is case-insensitive. Price and listing ID are ignored — only the title and city are matched.
 
@@ -35,6 +40,9 @@ Search is case-insensitive. Price and listing ID are ignored — only the title 
 prius+prime              → Prius Prime only
 (prius|camry)+2017       → Prius or Camry, 2017
 plug-in+hybrid           → any plug-in hybrid
+prius -camry             → Prius, excluding Camry
+-wanted -parts           → hide wanted/parts ads
+-(prius|camry)           → anything that is neither
 ```
 
 ### Search history

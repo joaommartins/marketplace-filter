@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      2.7.1
+// @version      2.8.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -260,9 +260,12 @@
   //
   // Grammar:
   //   query = and
-  //   and   = or ( '+' or )*
+  //   and   = or ( ('+' | ws) or )*
   //   or    = atom ( '|' atom )*
-  //   atom  = '(' and ')' | word
+  //   atom  = [ '-' ] ( '(' and ')' | word )
+  //
+  // Whitespace is an implicit '+' so `plug-in hybrid` reads as an intersection.
+  // A leading '-' negates the atom it precedes: `-civic`, `prius -civic`, `-(a|b)`.
 
   function parseQuery(raw) {
     const input = raw.trim().toLowerCase();
@@ -272,28 +275,44 @@
 
     function peek() { return input[pos]; }
     function consume() { return input[pos++]; }
+    function skipSpaces() { while (input[pos] === ' ') pos++; }
 
     function parseAtom() {
+      skipSpaces();
+
+      let negate = false;
+      if (peek() === '-') {
+        consume();
+        negate = true;
+        skipSpaces();
+      }
+
+      let pred;
       if (peek() === '(') {
         consume();
-        const pred = parseAnd();
+        pred = parseAnd();
+        skipSpaces();
         if (peek() === ')') consume();
-        return pred;
+      } else {
+        let word = '';
+        while (pos < input.length && !/[+|()\s]/.test(input[pos])) {
+          word += consume();
+        }
+        // A stray '-' with no term after it is a no-op, not a reject-all.
+        if (!word) return () => true;
+        pred = (title) => title.includes(word);
       }
-      let word = '';
-      while (pos < input.length && !/[+|()\s]/.test(input[pos])) {
-        word += consume();
-      }
-      while (pos < input.length && input[pos] === ' ') consume();
-      if (!word) return () => true;
-      return (title) => title.includes(word);
+
+      return negate ? (title) => !pred(title) : pred;
     }
 
     function parseOr() {
       const parts = [parseAtom()];
+      skipSpaces();
       while (peek() === '|') {
         consume();
         parts.push(parseAtom());
+        skipSpaces();
       }
       return parts.length === 1
         ? parts[0]
@@ -302,9 +321,18 @@
 
     function parseAnd() {
       const parts = [parseOr()];
-      while (peek() === '+') {
-        consume();
-        parts.push(parseOr());
+      for (;;) {
+        skipSpaces();
+        const c = peek();
+        if (c === '+') {
+          consume();
+          parts.push(parseOr());
+        } else if (c === undefined || c === ')' || c === '|') {
+          break;
+        } else {
+          // Whitespace-separated terms intersect, so `a b` means `a+b`.
+          parts.push(parseOr());
+        }
       }
       return parts.length === 1
         ? parts[0]
