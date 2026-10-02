@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.5.0
+// @version      4.6.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -17,10 +17,12 @@
 
   // ── Card helpers ─────────────────────────────────────────────────────────────
 
+  const CARD_SELECTOR = 'a[href*="/marketplace/item/"]';
+
   function getCards() {
-    return Array.from(
-      document.querySelectorAll('a[href*="/marketplace/item/"]')
-    ).filter(card => !card.closest('[role="dialog"]'));
+    return Array.from(document.querySelectorAll(CARD_SELECTOR)).filter(
+      (card) => !card.closest('[role="dialog"]')
+    );
   }
 
   // Price: "$4,995" or "4 995 $" or bare "4,995"
@@ -295,12 +297,32 @@
   const selectedStatuses = new Set(); // status ids chosen in the filter panel
   let unseenOnly = false; // when true, listings already marked seen are hidden
   let hideBad = false; // "view without rejected": removes bad listings from the grid
+  let compactView = false; // ...and closes the gaps they leave behind
 
   // A listing the hide-view removes entirely, as opposed to merely dimming.
   function isHiddenByView(card) {
     if (!hideBad) return false;
     const id = getItemId(card);
     return !!id && loadStatus(id) === 'bad';
+  }
+
+  // FB's grid cell, if the card sits in one. Hiding only the <a> leaves the cell
+  // occupying its track — a hole — and a fully hidden row collapses to zero
+  // height, which is why the next row jumps up. Collapsing the cell is what
+  // makes the grid re-stack. Cells holding more than one card are the grid
+  // container itself and must be left alone.
+  function cardCell(card) {
+    const parent = card.parentElement;
+    if (!parent || parent === document.body) return null;
+    return parent.querySelectorAll(CARD_SELECTOR).length === 1 ? parent : null;
+  }
+
+  function applyCardHidden(card, hidden) {
+    card.style.display = hidden ? 'none' : '';
+    const cell = cardCell(card);
+    // Only collapsed in the compact view; always restored, so switching the
+    // view off cannot strand a cell at display:none.
+    if (cell) cell.style.display = hidden && compactView ? 'none' : '';
   }
 
   function cardMatchesFilters(card) {
@@ -361,11 +383,9 @@
 
   function applyFilter() {
     getCards().forEach((card) => {
-      if (isHiddenByView(card)) {
-        card.style.display = 'none';
-        return;
-      }
-      card.style.display = '';
+      const hidden = isHiddenByView(card);
+      applyCardHidden(card, hidden);
+      if (hidden) return;
 
       const id = getItemId(card);
       const isBad = id && loadStatus(id) === 'bad';
@@ -866,8 +886,11 @@
       btn.addEventListener('click', () => {
         if (selectedStatuses.has(s.id)) selectedStatuses.delete(s.id);
         else selectedStatuses.add(s.id);
-        // "only Doesn't match" contradicts the view that hides them
-        if (s.id === 'bad' && selectedStatuses.has('bad')) hideBad = false;
+        // "only Doesn't match" contradicts both views that hide them
+        if (s.id === 'bad' && selectedStatuses.has('bad')) {
+          hideBad = false;
+          compactView = false;
+        }
         syncLegend();
         applyFilter();
         updateCounter();
@@ -928,6 +951,39 @@
     hideBtn.addEventListener('click', () => {
       hideBad = !hideBad;
       if (hideBad) selectedStatuses.delete('bad'); // the two would empty the grid
+      else compactView = false; // nothing left to re-stack
+      syncLegend();
+      applyFilter();
+      updateCounter();
+    });
+
+    // "Re-stack" — the same view, with the holes closed by collapsing the cells
+    const compactBtn = document.createElement('button');
+    compactBtn.title = 'Re-stack: close the gaps the hidden listings leave';
+    compactBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>';
+    Object.assign(compactBtn.style, toggleBtnStyle);
+
+    function syncCompactBtn() {
+      compactBtn.style.background = compactView ? 'rgba(77,166,255,0.2)' : 'rgba(255,255,255,0.08)';
+      compactBtn.style.borderColor = compactView ? '#4da6ff' : 'transparent';
+      compactBtn.style.color = compactView ? '#4da6ff' : 'rgba(255,255,255,0.45)';
+    }
+    syncCompactBtn();
+    legendSyncers.push(syncCompactBtn);
+    compactBtn.addEventListener('mouseenter', () => {
+      if (!compactView) compactBtn.style.background = 'rgba(255,255,255,0.16)';
+    });
+    compactBtn.addEventListener('mouseleave', syncCompactBtn);
+    compactBtn.addEventListener('click', () => {
+      compactView = !compactView;
+      if (compactView) {
+        // re-stacking only means anything if something is hidden
+        hideBad = true;
+        selectedStatuses.delete('bad');
+      }
       syncLegend();
       applyFilter();
       updateCounter();
@@ -977,6 +1033,7 @@
     legendLeft.appendChild(statusGroup);
     legendLeft.appendChild(seenBtn);
     legendLeft.appendChild(hideBtn);
+    legendLeft.appendChild(compactBtn);
 
     const legendRight = document.createElement('div');
     Object.assign(legendRight.style, { display: 'flex', gap: '4px', alignItems: 'center' });

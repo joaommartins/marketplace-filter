@@ -92,9 +92,14 @@ The bottom row of the panel has three status toggle buttons, the view toggles de
 
 ## Hiding rejected listings
 
-The crossed-eye toggle switches the grid to a view **without** the listings you marked **"Doesn't match"**. They are removed from the grid outright rather than dimmed, and the match counter stops counting them, so the page closes up around the listings you kept.
+Two toggles in the bottom row remove the listings you marked **"Doesn't match"** from the grid rather than just dimming them. In both views the match counter stops counting them.
 
-Selecting the "Doesn't match" status filter turns this view off, and switching it on clears that selection — the two together would empty the grid.
+| Toggle | Effect |
+|---|---|
+| Crossed eye | **Hide.** The cards disappear but keep their slot, so nothing shifts while you work down a page. A fully rejected row still collapses its height, pulling the row below up. |
+| Re-stack (chevrons) | **Hide and close the gaps.** Facebook's per-card cell is collapsed as well, so the remaining cards flow back into place. Re-stacking implies hiding. |
+
+Selecting the "Doesn't match" status filter turns both views off, and switching either one on clears that selection — together they would empty the grid.
 
 ---
 
