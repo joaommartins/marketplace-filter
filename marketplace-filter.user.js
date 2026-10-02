@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      3.0.1
+// @version      3.0.2
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -325,11 +325,10 @@
       refreshSeen(card);
       const id = getItemId(card);
       if (!id) return;
-      ensureSavedBadge(card);
-      refreshSavedBlock(card, id);
       const overlay = card.querySelector(`[${OVERLAY_MARKER}]`);
       if (!overlay) return;
       refreshButtons(overlay, id);
+      refreshSavedBlock(overlay, id);
       const noteDisplay = overlay.querySelector('[data-fmp-note]');
       if (noteDisplay) {
         const note = loadNote(id);
@@ -438,40 +437,14 @@
     });
   }
 
-  // The bookmark tag is anchored to the card, not placed in the overlay's
-  // horizontal row, so the note field can never push it out of view.
+  // The bookmark tag rides inside the overlay's row, near its start. Its x
+  // therefore derives from the overlay's own left edge — the same reference the
+  // status pill uses — rather than from the card's right edge, which can sit
+  // past the tile and push a `right:`-anchored element onto the next card.
   const SAVED_MARKER = 'data-fmp-saved';
 
-  function ensureSavedBadge(card) {
-    if (card.querySelector(`[${SAVED_MARKER}]`)) return;
-    const badge = document.createElement('div');
-    badge.setAttribute(SAVED_MARKER, '1');
-    badge.title = 'Saved on Facebook';
-    badge.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
-      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-    Object.assign(badge.style, {
-      position: 'absolute',
-      top: '6px',
-      right: '6px',
-      zIndex: '20',
-      display: 'none',
-      padding: '3px',
-      borderRadius: '8px',
-      background: 'rgba(0,0,0,0.45)',
-      backdropFilter: 'blur(6px)',
-      WebkitBackdropFilter: 'blur(6px)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#4da6ff',
-      pointerEvents: 'none',
-    });
-    card.appendChild(badge);
-  }
-
-  function refreshSavedBlock(card, id) {
-    const badge = card.querySelector(`[${SAVED_MARKER}]`);
+  function refreshSavedBlock(overlay, id) {
+    const badge = overlay.querySelector(`[${SAVED_MARKER}]`);
     if (badge) badge.style.display = loadSaved(id) ? 'flex' : 'none';
   }
 
@@ -479,15 +452,16 @@
     const id = getItemId(card);
     if (!id) return;
 
+    // If overlay was removed (e.g. by FB re-render) re-inject it
+    const existing = card.querySelector(`[${OVERLAY_MARKER}]`);
+    if (existing) {
+      refreshSavedBlock(existing, id);
+      return;
+    }
+
     if (getComputedStyle(card).position === 'static') {
       card.style.position = 'relative';
     }
-
-    ensureSavedBadge(card);
-    refreshSavedBlock(card, id);
-
-    // If overlay was removed (e.g. by FB re-render) re-inject it
-    if (card.querySelector(`[${OVERLAY_MARKER}]`)) return;
 
     // Outer wrapper — horizontal flex, two independent blocks
     const overlay = document.createElement('div');
@@ -496,6 +470,8 @@
       position: 'absolute',
       top: '6px',
       left: '6px',
+      maxWidth: 'calc(100% - 12px)',
+      boxSizing: 'border-box',
       zIndex: '20',
       display: 'flex',
       flexDirection: 'row',
@@ -509,6 +485,7 @@
       display: 'flex',
       gap: '3px',
       padding: '3px',
+      flexShrink: '0',
       borderRadius: '8px',
       background: 'rgba(0,0,0,0.45)',
       backdropFilter: 'blur(6px)',
@@ -558,10 +535,36 @@
 
     overlay.appendChild(statusBlock);
 
+    // ── Saved tag — mirrored from FB's Saved page ───────────────────────────────
+    // Sits between the status pill and the note field, so its x is ~100px from
+    // the overlay's left edge: far inside the tile on any realistic card width.
+    const savedBlock = document.createElement('div');
+    savedBlock.setAttribute(SAVED_MARKER, '1');
+    savedBlock.title = 'Saved on Facebook';
+    savedBlock.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+    Object.assign(savedBlock.style, {
+      display: 'none',
+      flexShrink: '0',
+      padding: '3px',
+      borderRadius: '8px',
+      background: 'rgba(0,0,0,0.45)',
+      backdropFilter: 'blur(6px)',
+      WebkitBackdropFilter: 'blur(6px)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#4da6ff',
+    });
+    overlay.appendChild(savedBlock);
+
     // ── Note block ──────────────────────────────────────────────────────────────
     const noteBlock = document.createElement('div');
     Object.assign(noteBlock.style, {
       width: '130px',
+      flex: '0 1 auto',
+      minWidth: '0',
       boxSizing: 'border-box',
       padding: '3px 6px',
       borderRadius: '8px',
@@ -642,6 +645,7 @@
     overlay.appendChild(noteBlock);
 
     refreshButtons(overlay, id);
+    refreshSavedBlock(overlay, id);
     card.appendChild(overlay);
   }
 
