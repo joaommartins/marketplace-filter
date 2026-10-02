@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.6.1
+// @version      4.7.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -298,12 +298,23 @@
   let unseenOnly = false; // when true, listings already marked seen are hidden
   let hideBad = false; // "view without rejected": removes bad listings from the grid
   let compactView = false; // ...and closes the gaps they leave behind
+  let frozenIds = null; // ids loaded when the list was frozen; later arrivals are dropped
 
-  // A listing the hide-view removes entirely, as opposed to merely dimming.
-  function isHiddenByView(card) {
-    if (!hideBad) return false;
+  function isBadCard(card) {
     const id = getItemId(card);
     return !!id && loadStatus(id) === 'bad';
+  }
+
+  // A card that arrived after the freeze: not part of what the user is working on.
+  function isFrozenOut(card) {
+    if (!frozenIds) return false;
+    const id = getItemId(card);
+    return !id || !frozenIds.has(id);
+  }
+
+  // A listing the hide-views remove entirely, as opposed to merely dimming.
+  function isHiddenByView(card) {
+    return (hideBad && isBadCard(card)) || isFrozenOut(card);
   }
 
   // Elements known to hold more than one card — the grid, row containers. Cached
@@ -335,14 +346,41 @@
     return wrappers;
   }
 
-  function applyCardHidden(card, hidden) {
+  // keepSlot is the plain hide view's deliberate choice to leave the gap open so
+  // nothing shifts while triaging; every other kind of hiding closes it.
+  function applyCardHidden(card, hidden, keepSlot) {
     card.style.display = hidden ? 'none' : '';
-    // Collapsed only in the re-stack view; always restored, so switching the
-    // view off cannot strand a wrapper at display:none.
-    const collapse = hidden && compactView;
+    const collapse = hidden && !keepSlot;
     cardWrappers(card).forEach((el) => {
       el.style.display = collapse ? 'none' : '';
     });
+  }
+
+  // What "all loaded" means for the mark-as-seen action: everything currently in
+  // the grid, or exactly the frozen set once the list has been frozen.
+  function loadedCards() {
+    return getCards().filter((card) => !isFrozenOut(card));
+  }
+
+  function markAllLoadedSeen() {
+    const ids = loadedCards().map(getItemId).filter(Boolean);
+    if (!ids.length) return;
+    ids.forEach(saveSeen);
+    applyOverlays();
+    applyFilter();
+    updateCounter();
+  }
+
+  function freezeList() {
+    frozenIds = new Set(getCards().map(getItemId).filter(Boolean));
+    applyFilter();
+    updateCounter();
+  }
+
+  function unfreezeList() {
+    frozenIds = null;
+    applyFilter();
+    updateCounter();
   }
 
   function cardMatchesFilters(card) {
@@ -404,7 +442,7 @@
   function applyFilter() {
     getCards().forEach((card) => {
       const hidden = isHiddenByView(card);
-      applyCardHidden(card, hidden);
+      applyCardHidden(card, hidden, !compactView && !isFrozenOut(card));
       if (hidden) return;
 
       const id = getItemId(card);
@@ -437,6 +475,8 @@
 
   let bulkRow = null; // container, shown only when a filter is active
   let bulkLabel = null; // "Mark all N matching:"
+  let freezeButton = null; // freeze toggle, for its live count in the tooltip
+  let markSeenButton = null; // mark-all-loaded-seen action
   let activeInput = null; // search field, for the filter-active check
   let panelCollapsed = false;
 
@@ -1049,6 +1089,58 @@
     });
     clearBtn.addEventListener('click', clearAllData);
 
+    // ── Freeze the list, then sweep what is loaded into "seen" ──────────────────
+    // Pairs deliberately: freezing first is what makes the sweep predictable.
+    const freezeBtn = document.createElement('button');
+    freezeBtn.id = 'fmp-freeze';
+    freezeBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+    Object.assign(freezeBtn.style, toggleBtnStyle);
+
+    function syncFreezeBtn() {
+      const on = !!frozenIds;
+      freezeBtn.style.background = on ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.08)';
+      freezeBtn.style.borderColor = on ? 'rgba(255,255,255,0.5)' : 'transparent';
+      freezeBtn.style.color = on ? '#fff' : 'rgba(255,255,255,0.6)';
+    }
+    syncFreezeBtn();
+    legendSyncers.push(syncFreezeBtn);
+    freezeBtn.addEventListener('mouseenter', () => {
+      if (!frozenIds) freezeBtn.style.background = 'rgba(255,255,255,0.16)';
+    });
+    freezeBtn.addEventListener('mouseleave', syncFreezeBtn);
+    freezeBtn.addEventListener('click', () => {
+      if (frozenIds) unfreezeList();
+      else freezeList();
+      syncLegend();
+    });
+
+    const markSeenBtn = document.createElement('button');
+    markSeenBtn.id = 'fmp-mark-seen';
+    markSeenBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>';
+    Object.assign(markSeenBtn.style, {
+      ...toggleBtnStyle,
+      background: 'rgba(34,197,94,0.15)',
+      borderColor: 'rgba(34,197,94,0.35)',
+      color: '#22c55e',
+    });
+    markSeenBtn.addEventListener('mouseenter', () => {
+      markSeenBtn.style.background = 'rgba(34,197,94,0.28)';
+      markSeenBtn.style.borderColor = 'rgba(34,197,94,0.6)';
+    });
+    markSeenBtn.addEventListener('mouseleave', () => {
+      markSeenBtn.style.background = 'rgba(34,197,94,0.15)';
+      markSeenBtn.style.borderColor = 'rgba(34,197,94,0.35)';
+    });
+    markSeenBtn.addEventListener('click', markAllLoadedSeen);
+    freezeButton = freezeBtn;
+    markSeenButton = markSeenBtn;
+
     const viewGroup = document.createElement('div');
     Object.assign(viewGroup.style, { display: 'flex', gap: '4px', alignItems: 'center' });
     viewGroup.appendChild(seenBtn);
@@ -1061,6 +1153,8 @@
     // Controls, row 2: the destructive actions, with the match counter alongside
     const actionGroup = document.createElement('div');
     Object.assign(actionGroup.style, { display: 'flex', gap: '4px', alignItems: 'center' });
+    actionGroup.appendChild(freezeBtn);
+    actionGroup.appendChild(markSeenBtn);
     actionGroup.appendChild(resetSeenBtn);
     actionGroup.appendChild(clearBtn);
 
@@ -1163,14 +1257,26 @@
     const cards = getCards();
     let visible = 0;
     let total = 0;
+    let loaded = 0;
     cards.forEach((card) => {
-      if (isHiddenByView(card)) return; // gone from the grid: not counted at all
+      if (isFrozenOut(card)) return; // arrived after the freeze: not part of this list
+      loaded++;
+      if (isHiddenByView(card)) return; // rejected and hidden: not counted at all
       total++;
       if (cardMatchesFilters(card)) visible++;
     });
 
     if (activeCounter) {
       activeCounter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
+    }
+
+    if (freezeButton) {
+      freezeButton.title = frozenIds
+        ? `List frozen at ${loaded} listings — click to resume loading`
+        : 'Freeze the list: ignore anything that loads after this, so you know exactly what is in front of you';
+    }
+    if (markSeenButton) {
+      markSeenButton.title = `Mark all ${loaded} loaded listings as seen`;
     }
 
     if (bulkRow) {

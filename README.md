@@ -118,6 +118,14 @@ Seen marks are stored in GM storage, one entry per listing.
 
 ---
 
+## Freezing the list
+
+Marketplace keeps loading listings as you scroll, which makes "everything I've looked at" a moving target. The **pause** button freezes the list at the moment you press it: anything that loads afterwards is ignored — hidden, left out of the counter, and out of reach of the sweep — until you press it again. Unfreezing brings those listings back, still unseen.
+
+The **double-check** button marks every loaded listing as seen in one go. Its tooltip always names the exact count, and with the list frozen that count cannot change under you. Freeze first if you want the sweep to be predictable.
+
+---
+
 ## Saved listings
 
 A bookmark badge appears on any listing that is in your Facebook **Saved** list, so you can tell at a glance which ones you've already bookmarked.
