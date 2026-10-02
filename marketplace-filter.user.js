@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      3.0.0
+// @version      3.0.1
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -325,10 +325,11 @@
       refreshSeen(card);
       const id = getItemId(card);
       if (!id) return;
+      ensureSavedBadge(card);
+      refreshSavedBlock(card, id);
       const overlay = card.querySelector(`[${OVERLAY_MARKER}]`);
       if (!overlay) return;
       refreshButtons(overlay, id);
-      refreshSavedBlock(overlay, id);
       const noteDisplay = overlay.querySelector('[data-fmp-note]');
       if (noteDisplay) {
         const note = loadNote(id);
@@ -437,25 +438,56 @@
     });
   }
 
-  function refreshSavedBlock(overlay, id) {
-    const block = overlay.querySelector('[data-fmp-saved]');
-    if (block) block.style.display = loadSaved(id) ? 'flex' : 'none';
+  // The bookmark tag is anchored to the card, not placed in the overlay's
+  // horizontal row, so the note field can never push it out of view.
+  const SAVED_MARKER = 'data-fmp-saved';
+
+  function ensureSavedBadge(card) {
+    if (card.querySelector(`[${SAVED_MARKER}]`)) return;
+    const badge = document.createElement('div');
+    badge.setAttribute(SAVED_MARKER, '1');
+    badge.title = 'Saved on Facebook';
+    badge.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+    Object.assign(badge.style, {
+      position: 'absolute',
+      top: '6px',
+      right: '6px',
+      zIndex: '20',
+      display: 'none',
+      padding: '3px',
+      borderRadius: '8px',
+      background: 'rgba(0,0,0,0.45)',
+      backdropFilter: 'blur(6px)',
+      WebkitBackdropFilter: 'blur(6px)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#4da6ff',
+      pointerEvents: 'none',
+    });
+    card.appendChild(badge);
+  }
+
+  function refreshSavedBlock(card, id) {
+    const badge = card.querySelector(`[${SAVED_MARKER}]`);
+    if (badge) badge.style.display = loadSaved(id) ? 'flex' : 'none';
   }
 
   function addStatusOverlay(card) {
     const id = getItemId(card);
     if (!id) return;
 
-    // If overlay was removed (e.g. by FB re-render) re-inject it
-    const existing = card.querySelector(`[${OVERLAY_MARKER}]`);
-    if (existing) {
-      refreshSavedBlock(existing, id);
-      return;
-    }
-
     if (getComputedStyle(card).position === 'static') {
       card.style.position = 'relative';
     }
+
+    ensureSavedBadge(card);
+    refreshSavedBlock(card, id);
+
+    // If overlay was removed (e.g. by FB re-render) re-inject it
+    if (card.querySelector(`[${OVERLAY_MARKER}]`)) return;
 
     // Outer wrapper — horizontal flex, two independent blocks
     const overlay = document.createElement('div');
@@ -609,29 +641,7 @@
     noteBlock.appendChild(noteInput);
     overlay.appendChild(noteBlock);
 
-    // ── Saved block — shown only for listings mirrored from FB's Saved page ─────
-    const savedBlock = document.createElement('div');
-    savedBlock.setAttribute('data-fmp-saved', '1');
-    savedBlock.title = 'Saved on Facebook';
-    savedBlock.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
-      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-    Object.assign(savedBlock.style, {
-      display: 'none',
-      padding: '3px',
-      borderRadius: '8px',
-      background: 'rgba(0,0,0,0.45)',
-      backdropFilter: 'blur(6px)',
-      WebkitBackdropFilter: 'blur(6px)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#4da6ff',
-    });
-    overlay.appendChild(savedBlock);
-
     refreshButtons(overlay, id);
-    refreshSavedBlock(overlay, id);
     card.appendChild(overlay);
   }
 
