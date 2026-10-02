@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      2.8.0
+// @version      3.0.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -52,22 +52,6 @@
       }
     });
     return parts.join(' ').toLowerCase();
-  }
-
-  // Location from the aria-label: the title is the first segment, then
-  // price, then the location, then the listing ID. Drop the title, price
-  // and ID segments; what remains is the location.
-  //   "Title, $4,995, Portland, OR, listing 2048088512449409" → "portland or"
-  function getCardLocation(card) {
-    const label = card.getAttribute('aria-label');
-    if (!label) return '';
-    return label
-      .split(/,\s*/)
-      .map((part) => part.trim())
-      .slice(1)
-      .filter((part) => part && !isNoiseSegment(part))
-      .join(' ')
-      .toLowerCase();
   }
 
   // Item ID extracted from the listing URL — stable unique identifier
@@ -124,29 +108,6 @@
       GM_setValue(LS_NOTE_PREFIX + id, trimmed);
     } else {
       GM_deleteValue(LS_NOTE_PREFIX + id);
-    }
-  }
-
-  // ── Location filter storage ──────────────────────────────────────────────────
-
-  const LOCATIONS_KEY = 'fmp_locations';
-
-  function parseLocations(raw) {
-    return String(raw || '')
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-  }
-
-  function loadLocations() {
-    return parseLocations(GM_getValue(LOCATIONS_KEY, ''));
-  }
-
-  function saveLocations(text) {
-    if (text.trim()) {
-      GM_setValue(LOCATIONS_KEY, text.trim());
-    } else {
-      GM_deleteValue(LOCATIONS_KEY);
     }
   }
 
@@ -346,16 +307,10 @@
 
   let currentPredicate = () => true;
   const selectedStatuses = new Set(); // status ids chosen in the filter panel
-  let locationFilter = []; // allowed location substrings, lowercased; empty = off
   let unseenOnly = false; // when true, listings already marked seen are hidden
 
   function cardMatchesFilters(card) {
     if (!currentPredicate(getCardTitle(card))) return false;
-
-    if (locationFilter.length) {
-      const loc = getCardLocation(card);
-      if (!loc || !locationFilter.some((term) => loc.includes(term))) return false;
-    }
 
     const id = getItemId(card);
     if (unseenOnly && id && isSeen(id)) return false;
@@ -886,44 +841,6 @@
     inputWrapper.appendChild(clearInputBtn);
     inputWrapper.appendChild(dropdown);
 
-    // Location filter input — comma-separated allowed locations, persisted
-    locationFilter = loadLocations();
-
-    const locWrapper = document.createElement('div');
-    Object.assign(locWrapper.style, { position: 'relative', width: '100%' });
-
-    const locInput = document.createElement('input');
-    locInput.type = 'text';
-    locInput.placeholder = 'Locations, comma-separated (e.g. Portland, Seattle)';
-    locInput.value = GM_getValue(LOCATIONS_KEY, '');
-    Object.assign(locInput.style, {
-      width: '100%',
-      boxSizing: 'border-box',
-      background: 'rgba(255,255,255,0.1)',
-      border: '1px solid rgba(255,255,255,0.2)',
-      borderRadius: '8px',
-      color: '#fff',
-      fontSize: '12px',
-      padding: '6px 10px',
-      outline: 'none',
-      caretColor: '#4da6ff',
-    });
-    locInput.addEventListener('focus', () => {
-      locInput.style.borderColor = 'rgba(77,166,255,0.7)';
-    });
-    locInput.addEventListener('blur', () => {
-      locInput.style.borderColor = 'rgba(255,255,255,0.2)';
-    });
-    locInput.addEventListener('keydown', (e) => e.stopPropagation());
-    locInput.addEventListener('input', () => {
-      saveLocations(locInput.value);
-      locationFilter = parseLocations(locInput.value);
-      applyFilter();
-      updateCounter();
-    });
-
-    locWrapper.appendChild(locInput);
-
     // Match counter — declared before legend so toggle buttons can call updateCounter
     const counter = document.createElement('div');
     Object.assign(counter.style, {
@@ -1067,7 +984,6 @@
 
     wrapper.appendChild(labelRow);
     wrapper.appendChild(inputWrapper);
-    wrapper.appendChild(locWrapper);
     wrapper.appendChild(legend);
     wrapper.appendChild(counter);
 
@@ -1076,7 +992,6 @@
     toggleBtn.addEventListener('click', () => {
       collapsed = !collapsed;
       inputWrapper.style.display = collapsed ? 'none' : '';
-      locWrapper.style.display = collapsed ? 'none' : '';
       legend.style.display = collapsed ? 'none' : 'flex';
       counter.style.display = collapsed ? 'none' : '';
       toggleBtn.textContent = collapsed ? '+' : '–';
@@ -1138,6 +1053,9 @@
   // ── Init ─────────────────────────────────────────────────────────────────────
 
   function init() {
+    // The location filter was removed in 3.0.0; purge its persisted setting.
+    GM_deleteValue('fmp_locations');
+
     const existing = document.getElementById('fmp-filter-box');
 
     // @match now covers all of facebook.com (SPA navigations into
