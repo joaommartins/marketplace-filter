@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.6.0
+// @version      4.6.1
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -306,23 +306,43 @@
     return !!id && loadStatus(id) === 'bad';
   }
 
-  // FB's grid cell, if the card sits in one. Hiding only the <a> leaves the cell
-  // occupying its track — a hole — and a fully hidden row collapses to zero
-  // height, which is why the next row jumps up. Collapsing the cell is what
-  // makes the grid re-stack. Cells holding more than one card are the grid
-  // container itself and must be left alone.
-  function cardCell(card) {
-    const parent = card.parentElement;
-    if (!parent || parent === document.body) return null;
-    return parent.querySelectorAll(CARD_SELECTOR).length === 1 ? parent : null;
+  // Elements known to hold more than one card — the grid, row containers. Cached
+  // because the test is a full subtree scan and the count only ever grows.
+  const sharedContainers = new WeakSet();
+
+  function holdsOneCard(el) {
+    if (sharedContainers.has(el)) return false;
+    if (el.querySelectorAll(CARD_SELECTOR).length > 1) {
+      sharedContainers.add(el);
+      return false;
+    }
+    return true;
+  }
+
+  // Every wrapper between the card and the shared layout: the ancestors that
+  // exist for this one card only, from the card outward. Hiding the <a> alone
+  // leaves whichever of them is the grid item sitting in its track — the hole —
+  // so they all have to collapse. The walk stops at the first ancestor that
+  // also holds another card, since hiding that would take out cards still on
+  // screen. Depth varies by layout, which is why this is a walk and not a
+  // single parentElement check.
+  function cardWrappers(card) {
+    const wrappers = [];
+    for (let el = card.parentElement; el && el !== document.body; el = el.parentElement) {
+      if (!holdsOneCard(el)) break;
+      wrappers.push(el);
+    }
+    return wrappers;
   }
 
   function applyCardHidden(card, hidden) {
     card.style.display = hidden ? 'none' : '';
-    const cell = cardCell(card);
-    // Only collapsed in the compact view; always restored, so switching the
-    // view off cannot strand a cell at display:none.
-    if (cell) cell.style.display = hidden && compactView ? 'none' : '';
+    // Collapsed only in the re-stack view; always restored, so switching the
+    // view off cannot strand a wrapper at display:none.
+    const collapse = hidden && compactView;
+    cardWrappers(card).forEach((el) => {
+      el.style.display = collapse ? 'none' : '';
+    });
   }
 
   function cardMatchesFilters(card) {
@@ -833,12 +853,13 @@
     });
     activeCounter = counter;
 
-    // Status filter toggles
-    const legend = document.createElement('div');
-    Object.assign(legend.style, {
+    // Controls, row 1: the status filters on the left, the view toggles on the right
+    const filterRow = document.createElement('div');
+    Object.assign(filterRow.style, {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
+      gap: '6px',
       paddingTop: '2px',
     });
 
@@ -1028,20 +1049,30 @@
     });
     clearBtn.addEventListener('click', clearAllData);
 
-    const legendLeft = document.createElement('div');
-    Object.assign(legendLeft.style, { display: 'flex', gap: '6px', alignItems: 'center' });
-    legendLeft.appendChild(statusGroup);
-    legendLeft.appendChild(seenBtn);
-    legendLeft.appendChild(hideBtn);
-    legendLeft.appendChild(compactBtn);
+    const viewGroup = document.createElement('div');
+    Object.assign(viewGroup.style, { display: 'flex', gap: '4px', alignItems: 'center' });
+    viewGroup.appendChild(seenBtn);
+    viewGroup.appendChild(hideBtn);
+    viewGroup.appendChild(compactBtn);
 
-    const legendRight = document.createElement('div');
-    Object.assign(legendRight.style, { display: 'flex', gap: '4px', alignItems: 'center' });
-    legendRight.appendChild(resetSeenBtn);
-    legendRight.appendChild(clearBtn);
+    filterRow.appendChild(statusGroup);
+    filterRow.appendChild(viewGroup);
 
-    legend.appendChild(legendLeft);
-    legend.appendChild(legendRight);
+    // Controls, row 2: the destructive actions, with the match counter alongside
+    const actionGroup = document.createElement('div');
+    Object.assign(actionGroup.style, { display: 'flex', gap: '4px', alignItems: 'center' });
+    actionGroup.appendChild(resetSeenBtn);
+    actionGroup.appendChild(clearBtn);
+
+    const actionRow = document.createElement('div');
+    Object.assign(actionRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+    });
+    actionRow.appendChild(actionGroup);
+    actionRow.appendChild(counter);
 
     // ── Bulk marking row — revealed by updateCounter while a filter is active ───
     activeInput = input;
@@ -1094,9 +1125,9 @@
 
     wrapper.appendChild(labelRow);
     wrapper.appendChild(inputWrapper);
-    wrapper.appendChild(legend);
+    wrapper.appendChild(filterRow);
     wrapper.appendChild(bulk);
-    wrapper.appendChild(counter);
+    wrapper.appendChild(actionRow);
 
     // Collapse toggle
     let collapsed = false;
@@ -1104,8 +1135,8 @@
       collapsed = !collapsed;
       panelCollapsed = collapsed;
       inputWrapper.style.display = collapsed ? 'none' : '';
-      legend.style.display = collapsed ? 'none' : 'flex';
-      counter.style.display = collapsed ? 'none' : '';
+      filterRow.style.display = collapsed ? 'none' : 'flex';
+      actionRow.style.display = collapsed ? 'none' : 'flex';
       toggleBtn.textContent = collapsed ? '+' : '–';
       wrapper.style.padding = collapsed ? '8px 14px' : '10px 14px';
     });

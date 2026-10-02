@@ -14,7 +14,7 @@ Alternatively, open Tampermonkey → **Create a new script**, paste the file con
 
 ## Filtering
 
-The panel contains a search input. Listings that don't match the query are dimmed (opacity: 0.1). A counter below the input shows the number of matches.
+The panel contains a search input. Listings that don't match the query are dimmed (opacity: 0.1). A counter at the bottom of the panel shows the number of matches.
 
 A **×** button on the right side of the input clears the query and resets the filter.
 
@@ -86,7 +86,7 @@ Each listing card gets a small panel in the top-left corner of the photo with th
 
 ## Status filter
 
-The bottom row of the panel has three status toggle buttons, the view toggles described below, and the trash button. Clicking a status toggle shows only listings with that status; others are dimmed. Multiple statuses can be selected at once. Click again to deselect.
+The controls are laid out in rows: the status filters and the view toggles share one, and the reset and trash buttons sit on the next alongside the match counter. Clicking a status toggle shows only listings with that status; others are dimmed. Multiple statuses can be selected at once. Click again to deselect.
 
 ---
 
