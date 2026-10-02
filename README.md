@@ -88,8 +88,9 @@ The bottom row of the panel has three status toggle buttons, the seen-tracking c
 
 Listings you have opened are remembered, so you can tell new ones from ones you've already looked at.
 
-- **Unseen** listings get a green outline.
-- Opening a listing — any click on the card outside the status panel — marks it seen and removes the outline. Clicking a status button does **not** count as viewing.
+- **Unseen** listings get a bold green ring.
+- **Seen** listings are dimmed behind a dark veil, so new ones stand out at a glance. The veil sits under the status buttons, so their colours stay readable.
+- Opening a listing — any click on the card outside the status panel — marks it seen, swapping the ring for the veil. Clicking a status button does **not** count as viewing.
 - Listings in your Facebook Saved list always count as seen, whether or not you opened them (see [Saved listings](#saved-listings)).
 - The **eye** toggle shows only unseen listings; everything already seen is dimmed. Click again to show all.
 - The **↺** button clears every seen mark you set by clicking. Saved listings stay seen, since that follows from being saved; use the trash button to clear everything.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.0.1
+// @version      4.1.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -337,7 +337,11 @@
     style.textContent =
       'a[href*="/marketplace/item/"][data-fmp-bad]{opacity:0.25;transition:opacity 0.2s}\n' +
       'a[href*="/marketplace/item/"][data-fmp-bad]:hover{opacity:1}\n' +
-      'a[href*="/marketplace/item/"][data-fmp-seen="0"]{outline:2px solid rgba(34,197,94,0.55);outline-offset:-2px}';
+      // unseen: vivid green ring
+      'a[href*="/marketplace/item/"][data-fmp-seen="0"]{outline:3px solid #22c55e;outline-offset:-3px;border-radius:8px}\n' +
+      // seen: muted by a veil that paints over the photo but under the overlay
+      // (the overlay carries z-index 20), so status buttons keep their colours
+      'a[href*="/marketplace/item/"][data-fmp-seen="1"]::after{content:"";position:absolute;inset:0;border-radius:8px;background:rgba(12,12,12,0.55);pointer-events:none}';
     document.head.appendChild(style);
   }
 
