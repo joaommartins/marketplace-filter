@@ -111,20 +111,9 @@ Grid cards themselves carry no saved flag, so the script mirrors the list from F
 
 ---
 
-## Notes
-
-Each listing card has a note field next to the status buttons. Click it to enter a short note (up to 50 characters).
-
-- When empty, a dim `+ note` placeholder is shown
-- Save: **Enter** or click outside the field
-- Cancel: **Escape**
-- Notes are stored in GM storage and tied to the listing ID
-
----
-
 ## Clear all data
 
-The trash icon button on the right side of the status filter row prompts for confirmation, then deletes **all** saved statuses, notes, seen marks and the mirrored saved list. Cards update immediately without a page reload.
+The trash icon button on the right side of the status filter row prompts for confirmation, then deletes **all** saved statuses, seen marks and the mirrored saved list. Cards update immediately without a page reload.
 
 ---
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      3.0.2
+// @version      4.0.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -92,23 +92,6 @@
     const hist = loadHistory().filter(h => h !== q);
     hist.unshift(q);
     GM_setValue(HISTORY_KEY, hist.slice(0, HISTORY_MAX));
-  }
-
-  // ── Note storage ─────────────────────────────────────────────────────────────
-
-  const LS_NOTE_PREFIX = 'fmp_note_';
-
-  function loadNote(id) {
-    return GM_getValue(LS_NOTE_PREFIX + id, '');
-  }
-
-  function saveNote(id, text) {
-    const trimmed = text.trim().slice(0, 50);
-    if (trimmed) {
-      GM_setValue(LS_NOTE_PREFIX + id, trimmed);
-    } else {
-      GM_deleteValue(LS_NOTE_PREFIX + id);
-    }
   }
 
   // ── Seen tracking storage ────────────────────────────────────────────────────
@@ -329,21 +312,14 @@
       if (!overlay) return;
       refreshButtons(overlay, id);
       refreshSavedBlock(overlay, id);
-      const noteDisplay = overlay.querySelector('[data-fmp-note]');
-      if (noteDisplay) {
-        const note = loadNote(id);
-        noteDisplay.textContent = note || '+ note';
-        noteDisplay.style.color = note ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.22)';
-      }
     });
   }
 
   function clearAllData() {
-    if (!confirm('Delete all saved statuses, notes, seen and saved mirrors? This action cannot be undone.')) return;
+    if (!confirm('Delete all saved statuses, seen marks and the mirrored saved list? This action cannot be undone.')) return;
     GM_listValues().forEach((key) => {
       if (
         key.startsWith(LS_PREFIX) ||
-        key.startsWith(LS_NOTE_PREFIX) ||
         key.startsWith(LS_SEEN_PREFIX) ||
         key.startsWith(LS_SAVED_PREFIX)
       ) {
@@ -470,8 +446,6 @@
       position: 'absolute',
       top: '6px',
       left: '6px',
-      maxWidth: 'calc(100% - 12px)',
-      boxSizing: 'border-box',
       zIndex: '20',
       display: 'flex',
       flexDirection: 'row',
@@ -485,7 +459,6 @@
       display: 'flex',
       gap: '3px',
       padding: '3px',
-      flexShrink: '0',
       borderRadius: '8px',
       background: 'rgba(0,0,0,0.45)',
       backdropFilter: 'blur(6px)',
@@ -536,8 +509,8 @@
     overlay.appendChild(statusBlock);
 
     // ── Saved tag — mirrored from FB's Saved page ───────────────────────────────
-    // Sits between the status pill and the note field, so its x is ~100px from
-    // the overlay's left edge: far inside the tile on any realistic card width.
+    // In flow right after the status pill, so its x derives from the overlay's
+    // left edge: inside the tile on any realistic card width.
     const savedBlock = document.createElement('div');
     savedBlock.setAttribute(SAVED_MARKER, '1');
     savedBlock.title = 'Saved on Facebook';
@@ -558,91 +531,6 @@
       color: '#4da6ff',
     });
     overlay.appendChild(savedBlock);
-
-    // ── Note block ──────────────────────────────────────────────────────────────
-    const noteBlock = document.createElement('div');
-    Object.assign(noteBlock.style, {
-      width: '130px',
-      flex: '0 1 auto',
-      minWidth: '0',
-      boxSizing: 'border-box',
-      padding: '3px 6px',
-      borderRadius: '8px',
-      background: 'rgba(0,0,0,0.45)',
-      backdropFilter: 'blur(6px)',
-      WebkitBackdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      cursor: 'text',
-    });
-
-    const noteDisplay = document.createElement('div');
-    noteDisplay.setAttribute('data-fmp-note', '1');
-    const initialNote = loadNote(id);
-    Object.assign(noteDisplay.style, {
-      fontSize: '11px',
-      lineHeight: '1',
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      width: '100%',
-      userSelect: 'none',
-      color: initialNote ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.22)',
-    });
-    noteDisplay.textContent = initialNote || '+ note';
-
-    const noteInput = document.createElement('input');
-    noteInput.type = 'text';
-    noteInput.maxLength = 50;
-    noteInput.placeholder = 'Note...';
-    Object.assign(noteInput.style, {
-      display: 'none',
-      width: '100%',
-      boxSizing: 'border-box',
-      background: 'transparent',
-      border: 'none',
-      borderBottom: '1px solid rgba(255,255,255,0.4)',
-      borderRadius: '0',
-      color: '#fff',
-      fontSize: '11px',
-      padding: '0',
-      outline: 'none',
-      caretColor: '#4da6ff',
-    });
-
-    function enterEdit() {
-      if (noteInput.style.display !== 'none') return;
-      noteInput.value = loadNote(id);
-      noteDisplay.style.display = 'none';
-      noteInput.style.display = '';
-      noteInput.focus();
-      noteInput.select();
-    }
-
-    function exitEdit(save) {
-      if (noteInput.style.display === 'none') return;
-      noteInput.style.display = 'none';
-      noteDisplay.style.display = '';
-      if (save) {
-        saveNote(id, noteInput.value);
-        const saved = loadNote(id);
-        noteDisplay.textContent = saved || '+ note';
-        noteDisplay.style.color = saved ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.22)';
-      }
-    }
-
-    noteBlock.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); enterEdit(); });
-    noteInput.addEventListener('click', (e) => e.stopPropagation());
-    noteInput.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') { e.preventDefault(); exitEdit(true); }
-      if (e.key === 'Escape') { e.preventDefault(); exitEdit(false); }
-    });
-    noteInput.addEventListener('blur', () => exitEdit(true));
-
-    noteBlock.appendChild(noteDisplay);
-    noteBlock.appendChild(noteInput);
-    overlay.appendChild(noteBlock);
 
     refreshButtons(overlay, id);
     refreshSavedBlock(overlay, id);
@@ -960,7 +848,7 @@
     resetSeenBtn.addEventListener('click', resetSeen);
 
     const clearBtn = document.createElement('button');
-    clearBtn.title = 'Clear all statuses, notes and seen marks';
+    clearBtn.title = 'Clear all statuses, seen marks and the saved mirror';
     clearBtn.innerHTML =
       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
       'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
@@ -1067,8 +955,11 @@
   // ── Init ─────────────────────────────────────────────────────────────────────
 
   function init() {
-    // The location filter was removed in 3.0.0; purge its persisted setting.
-    GM_deleteValue('fmp_locations');
+    // Features that no longer exist: purge their leftover persisted data.
+    GM_deleteValue('fmp_locations'); // city filter, removed in 3.0.0
+    GM_listValues().forEach((key) => {
+      if (key.startsWith('fmp_note_')) GM_deleteValue(key); // note field, removed in 4.0.0
+    });
 
     const existing = document.getElementById('fmp-filter-box');
 
