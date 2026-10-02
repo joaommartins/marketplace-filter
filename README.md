@@ -94,8 +94,9 @@ Listings you have opened are remembered, so you can tell new ones from ones you'
 
 - **Unseen** listings get a green outline.
 - Opening a listing — any click on the card outside the status panel — marks it seen and removes the outline. Clicking a status button does **not** count as viewing.
+- Listings in your Facebook Saved list always count as seen, whether or not you opened them (see [Saved listings](#saved-listings)).
 - The **eye** toggle shows only unseen listings; everything already seen is dimmed. Click again to show all.
-- The **↺** button clears every seen mark (after a confirmation).
+- The **↺** button clears every seen mark you set by clicking. Saved listings stay seen, since that follows from being saved; use the trash button to clear everything.
 
 Seen marks are stored in GM storage, one entry per listing.
 
@@ -108,6 +109,7 @@ A bookmark badge appears on any listing that is in your Facebook **Saved** list,
 Grid cards themselves carry no saved flag, so the script mirrors the list from Facebook's Saved page: **open `facebook.com/marketplace/you/saved/` once** and every listing rendered on that page is recorded. Scroll it to load more before leaving if you want deeper coverage — only what has actually rendered is captured. Badges then appear wherever those listings show up.
 
 - The mirror is stored per listing in GM storage and re-read on every page.
+- Saved listings also count as **seen**, so they are never outlined as new and never shown by the "unseen only" filter.
 - The mirror is **add-only**: un-saving a listing on Facebook does not remove its badge. The trash button clears the mirror.
 - If Facebook renames the Saved route, `SAVED_PATH_RE` in the saved-tracking section is the single line to update.
 

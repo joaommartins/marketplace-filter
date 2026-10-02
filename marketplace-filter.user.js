@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      2.7.0
+// @version      2.7.1
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -160,6 +160,12 @@
 
   function saveSeen(id) {
     GM_setValue(LS_SEEN_PREFIX + id, '1');
+  }
+
+  // Saving a listing is a stronger signal than opening it, so a saved listing
+  // counts as seen without needing an entry of its own.
+  function isSeen(id) {
+    return loadSeen(id) || loadSaved(id);
   }
 
   function countSeen() {
@@ -324,7 +330,7 @@
     }
 
     const id = getItemId(card);
-    if (unseenOnly && id && loadSeen(id)) return false;
+    if (unseenOnly && id && isSeen(id)) return false;
 
     if (selectedStatuses.size === 0) return true;
     const cardStatus = id ? loadStatus(id) : null;
@@ -416,7 +422,7 @@
       delete card.dataset.fmpSeen;
       return;
     }
-    card.dataset.fmpSeen = loadSeen(id) ? '1' : '0';
+    card.dataset.fmpSeen = isSeen(id) ? '1' : '0';
   }
 
   // Auto-mark a listing as seen when its card is opened. Clicks inside the
@@ -428,7 +434,7 @@
     card.dataset.fmpSeenHook = '1';
     card.addEventListener('mousedown', (event) => {
       if (event.target.closest(`[${OVERLAY_MARKER}]`)) return;
-      if (loadSeen(id)) return;
+      if (isSeen(id)) return;
       saveSeen(id);
       refreshSeen(card);
       applyFilter();
