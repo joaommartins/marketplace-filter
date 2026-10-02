@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.2.0
+// @version      4.3.0
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -66,7 +66,10 @@
   const LS_PREFIX = 'fmp_status_';
 
   function loadStatus(id) {
-    return GM_getValue(LS_PREFIX + id, null);
+    const stored = GM_getValue(LS_PREFIX + id, null);
+    // A listing saved on Facebook is, by definition, one to come back to, so it
+    // reads as "Consider later" — unless you have since given it another status.
+    return stored || (loadSaved(id) ? 'later' : null);
   }
 
   function saveStatus(id, status) {

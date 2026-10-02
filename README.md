@@ -107,6 +107,7 @@ Grid cards themselves carry no saved flag, so the script mirrors the list from F
 
 - The mirror is stored per listing in GM storage and re-read on every page.
 - Saved listings also count as **seen**, so they are never outlined as new and never shown by the "unseen only" filter.
+- Saved listings also read as the **Consider later** status, unless you have given them another status since. Because that follows from being saved, the ★ button cannot be cleared on them while they remain saved — give it a different status, or clear the mirror with the trash button.
 - The mirror is **add-only**: un-saving a listing on Facebook does not remove its badge. The trash button clears the mirror.
 - If Facebook renames the Saved route, `SAVED_PATH_RE` in the saved-tracking section is the single line to update.
 
