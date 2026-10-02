@@ -55,6 +55,14 @@ While a filter is narrowing the list, the panel shows a **Mark all N matching:**
 
 The row appears only when the query, the status filter or the unseen filter is active *and* at least one listing matches, so it can never mean "mark the whole page". Listings the filter has dimmed are never touched.
 
+### Showing only matches
+
+The funnel toggle keeps exactly the listings that match and removes the rest from the grid, rather than dimming them to 0.1. The counter then reads `Matches: N / N`.
+
+Like the rejected view, it follows the re-stack toggle: slots are kept by default so nothing shifts under you, and the gaps close when re-stacking is on.
+
+Once no filter is active there is nothing for it to act on, so it switches itself off when you clear the search instead of lying in wait for the next one.
+
 ---
 
 ## Listing statuses

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.7.0
+// @version      4.8.1
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -299,6 +299,7 @@
   let hideBad = false; // "view without rejected": removes bad listings from the grid
   let compactView = false; // ...and closes the gaps they leave behind
   let frozenIds = null; // ids loaded when the list was frozen; later arrivals are dropped
+  let onlyMatching = false; // "show only matching": non-matches leave the grid entirely
 
   function isBadCard(card) {
     const id = getItemId(card);
@@ -312,9 +313,18 @@
     return !id || !frozenIds.has(id);
   }
 
+  // Why a card is kept out of the grid, or null when it is in it. The first
+  // reason that applies also decides how it is hidden.
+  function hideReason(card) {
+    if (isFrozenOut(card)) return 'frozen';
+    if (onlyMatching && !matchesFilters(card)) return 'nonmatch';
+    if (hideBad && isBadCard(card)) return 'rejected';
+    return null;
+  }
+
   // A listing the hide-views remove entirely, as opposed to merely dimming.
   function isHiddenByView(card) {
-    return (hideBad && isBadCard(card)) || isFrozenOut(card);
+    return hideReason(card) !== null;
   }
 
   // Elements known to hold more than one card — the grid, row containers. Cached
@@ -383,8 +393,8 @@
     updateCounter();
   }
 
-  function cardMatchesFilters(card) {
-    if (isHiddenByView(card)) return false;
+  // Everything the filters say, before any view on top of them.
+  function matchesFilters(card) {
     if (!currentPredicate(getCardTitle(card))) return false;
 
     const id = getItemId(card);
@@ -393,6 +403,10 @@
     if (selectedStatuses.size === 0) return true;
     const cardStatus = id ? loadStatus(id) : null;
     return selectedStatuses.has(cardStatus);
+  }
+
+  function cardMatchesFilters(card) {
+    return !isHiddenByView(card) && matchesFilters(card);
   }
 
   function refreshAllOverlays() {
@@ -441,8 +455,13 @@
 
   function applyFilter() {
     getCards().forEach((card) => {
-      const hidden = isHiddenByView(card);
-      applyCardHidden(card, hidden, !compactView && !isFrozenOut(card));
+      const reason = hideReason(card);
+      const hidden = reason !== null;
+      // The plain hide views keep the slot open, so nothing shifts while
+      // triaging; re-stacking and freezing close the gap. Which of the two the
+      // matching view does is therefore up to the re-stack toggle.
+      const keepSlot = !compactView && reason !== 'frozen';
+      applyCardHidden(card, hidden, keepSlot);
       if (hidden) return;
 
       const id = getItemId(card);
@@ -478,6 +497,7 @@
   let freezeButton = null; // freeze toggle, for its live count in the tooltip
   let markSeenButton = null; // mark-all-loaded-seen action
   let activeInput = null; // search field, for the filter-active check
+  let syncToggleStyles = null; // set by createUI, so updateCounter can un-latch a mode
   let panelCollapsed = false;
 
   function hasActiveFilter() {
@@ -911,6 +931,7 @@
     // visually consistent.
     const legendSyncers = [];
     const syncLegend = () => legendSyncers.forEach((sync) => sync());
+    syncToggleStyles = syncLegend;
 
     const toggleBtnStyle = {
       width: '36px',
@@ -1141,11 +1162,40 @@
     freezeButton = freezeBtn;
     markSeenButton = markSeenBtn;
 
+    // "Show only matching" — while filtering, the dimmed non-matches disappear
+    const matchBtn = document.createElement('button');
+    matchBtn.id = 'fmp-only-matching';
+    matchBtn.title = 'Show only the listings that match the filter';
+    matchBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+      '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>';
+    Object.assign(matchBtn.style, toggleBtnStyle);
+
+    function syncMatchBtn() {
+      matchBtn.style.background = onlyMatching ? 'rgba(34,211,238,0.2)' : 'rgba(255,255,255,0.08)';
+      matchBtn.style.borderColor = onlyMatching ? '#22d3ee' : 'transparent';
+      matchBtn.style.color = onlyMatching ? '#22d3ee' : 'rgba(255,255,255,0.45)';
+    }
+    syncMatchBtn();
+    legendSyncers.push(syncMatchBtn);
+    matchBtn.addEventListener('mouseenter', () => {
+      if (!onlyMatching) matchBtn.style.background = 'rgba(255,255,255,0.16)';
+    });
+    matchBtn.addEventListener('mouseleave', syncMatchBtn);
+    matchBtn.addEventListener('click', () => {
+      onlyMatching = !onlyMatching;
+      syncLegend();
+      applyFilter();
+      updateCounter();
+    });
+
     const viewGroup = document.createElement('div');
     Object.assign(viewGroup.style, { display: 'flex', gap: '4px', alignItems: 'center' });
     viewGroup.appendChild(seenBtn);
     viewGroup.appendChild(hideBtn);
     viewGroup.appendChild(compactBtn);
+    viewGroup.appendChild(matchBtn);
 
     filterRow.appendChild(statusGroup);
     filterRow.appendChild(viewGroup);
@@ -1268,6 +1318,13 @@
 
     if (activeCounter) {
       activeCounter.textContent = total > 0 ? `Matches: ${visible} / ${total}` : '';
+    }
+
+    // With nothing to match against, the mode has no effect and would otherwise
+    // come back on silent with the next search — drop it and its lit state too.
+    if (onlyMatching && !hasActiveFilter()) {
+      onlyMatching = false;
+      if (syncToggleStyles) syncToggleStyles();
     }
 
     if (freezeButton) {
