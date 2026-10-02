@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Marketplace Filter
 // @namespace    https://github.com/ai36/marketplace-filter
-// @version      4.0.0
+// @version      4.0.1
 // @description  Filter + status markers for Facebook Marketplace listings
 // @author       local
 // @match        https://www.facebook.com/*
@@ -954,6 +954,8 @@
 
   // ── Init ─────────────────────────────────────────────────────────────────────
 
+  const MARKETPLACE_PATH_RE = /^\/marketplace(?:\/|$)/;
+
   function init() {
     // Features that no longer exist: purge their leftover persisted data.
     GM_deleteValue('fmp_locations'); // city filter, removed in 3.0.0
@@ -966,7 +968,9 @@
     // @match now covers all of facebook.com (SPA navigations into
     // Marketplace don't trigger a fresh script injection), so gate the
     // actual UI on the current path instead of the match pattern.
-    if (!location.pathname.startsWith('/marketplace/')) {
+    // The marketplace home is `/marketplace` with NO trailing slash; search
+    // and sub-routes are `/marketplace/...`.
+    if (!MARKETPLACE_PATH_RE.test(location.pathname)) {
       if (existing) existing.style.display = 'none';
       return;
     }
